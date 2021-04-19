@@ -7,6 +7,7 @@ import altair as alt
 import pydeck as pdk
 # import time
 from datetime import datetime, date, timedelta
+from vouchers import Voucher
 
 today = date.today()
 
@@ -32,9 +33,6 @@ arrival_days = st.slider(
     help='Количество дней до набора максимальной коечной мощности санатория.'
 )
 
-tours_per_day = math.floor(int(bed_capacity) / int(arrival_days))
-st.info('Количество путевок в день: %i' % tours_per_day)
-
 period = st.date_input(
     'Период формирования плана',
     (date(today.year, 1, 1), date(today.year, 4, 9)),
@@ -42,6 +40,8 @@ period = st.date_input(
     max_value=date(today.year, 12, 31),
     help='Период на которые производится расчет берется из плана функционирования.'
 )
+vouchers = Voucher(bed_capacity=bed_capacity, stay_days=days_of_stay, arrival_days=arrival_days, period=period)
+st.info('Количество путевок в день: %i' % vouchers.tours_per_day)
 
 
 st.write('Остановки санатория:')
@@ -60,7 +60,7 @@ with stops_col2:
 st.write('Сокращение номерного фонда:')
 col1, col2, col3 = st.beta_columns(3)
 with col1:
-    reducing_rooms = st.date_input(
+    reducing_period = st.date_input(
         'Период',
         (date(today.year, 3, 1), date(today.year, 3, 15)),
         min_value=period[0],
@@ -71,8 +71,8 @@ with col2:
 with col3:
     reduce_description = st.text_input('Причина', 'евро ремонт')
 
-reduce_tours_per_day = int(tours_per_day) - math.floor(int(reduce_beds)/int(arrival_days))
-st.info('Кол-во путёвок в день при сокращении: %i' % reduce_tours_per_day)
+vouchers.reducing_period = reducing_period
+st.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
 
 departments = [
     'Отделение "Мать и дитя"',
