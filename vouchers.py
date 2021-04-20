@@ -312,25 +312,34 @@ class Voucher(object):
             # получим дату для списка
             date_item = date_from + timedelta(days=day)
 
+            # Пропускаем дни в которые санаторий не работает
+            if stop_date_from <= date_item <= stop_date_to:
+                continue
+
+            # вычисляем дату окончания заезда
             end_date = date_item + timedelta(days=self.stay_days)
-            row = [
-                self.sanatorium_name,
-                arrival_no,
-                arrival_day,
-                date_item.strftime('%d.%m.%y - %a'),
-                self.stay_days,
-                end_date.strftime('%d.%m.%y'),
-                self.tours_per_day,
-                rest_beds,
-                self.days_between_arrival,
-            ]
 
-            if arrival_day <= self.arrival_days:
-                arrival_day += 1
-            else:
-                arrival_day = 1
+            # проверяем чтобы дата окончания заезда не вышла за пределы периода формирования плана
+            if end_date <= date_to:
+                # наполняем строку данными по заезду
+                row = [
+                    self.sanatorium_name,
+                    arrival_no,
+                    arrival_day,
+                    date_item.strftime('%d.%m.%y - %a'),
+                    self.stay_days,
+                    end_date.strftime('%d.%m.%y'),
+                    self.tours_per_day,
+                    rest_beds,
+                    self.days_between_arrival,
+                ]
 
-            rows.append(row)
+                if arrival_day < self.arrival_days:
+                    arrival_day += 1
+                else:
+                    arrival_day = 1
+
+                rows.append(row)
 
         df = pd.DataFrame(
             rows,
@@ -342,7 +351,7 @@ class Voucher(object):
                 'Кол-во дней',
                 'Окончание заезда',
                 'Кол-во путёвок',
-                'Остаток коек',
+                'Заполненность санатория',
                 'Между заездом дн.',
             ]
         )
