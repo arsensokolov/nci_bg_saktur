@@ -107,7 +107,7 @@ class Voucher(object):
         # Проверим полученные данные
         self.__validate__()
 
-        self.__set_locale__()
+        # self.__set_locale__()
 
     def __repr__(self) -> str:
         date_from, date_to = self.__str_period__()
