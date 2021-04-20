@@ -319,7 +319,7 @@ class Voucher(object):
                 arrival_day,
                 date_item.strftime('%d.%m.%y - %a'),
                 self.stay_days,
-                end_date,
+                end_date.strftime('%d.%m.%y'),
                 self.tours_per_day,
                 rest_beds,
                 self.days_between_arrival,
