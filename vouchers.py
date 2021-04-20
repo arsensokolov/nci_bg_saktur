@@ -76,17 +76,13 @@ class Voucher(object):
     __days_between_arrival = 0
     __non_arrivals_days = []
 
-    __stay_days_color = '#ffff00'
-    __arrival_days_color = '#00bfff'
-    __days_between_arrival_color = '#800080'
-    __non_arrivals_days_color = '#808080'
-
     def __init__(self, **kwargs) -> NoReturn:
         # Обязательные параметры
         self.bed_capacity: int = kwargs.get('bed_capacity', 0)
         self.stay_days: int = kwargs.get('stay_days', 0)
         self.arrival_days: int = kwargs.get('arrival_days', 0)
         self.period: Tuple[date, date] = kwargs.get('period', None)
+        self.sanatorium_name: str = kwargs.get('sanatorium_name', '')
 
         # Не обязательные параметры
         self.stop_period: Tuple[date, date] = kwargs.get('stop_period', self.__stop_period)
@@ -96,13 +92,6 @@ class Voucher(object):
         self.reduce_description: str = kwargs.get('reduce_description', self.__reduce_description)
         self.days_between_arrival: int = kwargs.get('days_between_arrival', self.__days_between_arrival)
         self.non_arrivals_days: list = kwargs.get('non_arrivals_days', self.__non_arrivals_days)
-
-        # Цвета для раскрашивания ячеек данных
-        self.stay_days_color: str = kwargs.get('stay_days_color', self.__stay_days_color)
-        self.arrival_days_color: str = kwargs.get('arrival_days_color', self.__arrival_days_color)
-        self.days_between_arrival_color: str = kwargs.get('days_between_arrival_color',
-                                                          self.__days_between_arrival_color)
-        self.non_arrivals_days_color: str = kwargs.get('non_arrivals_days_color', self.__non_arrivals_days_color)
 
         # Проверим полученные данные
         self.__validate__()
@@ -307,9 +296,6 @@ class Voucher(object):
         # подсчитаем длительность периода заездного плана санатория
         period_delta = date_to - date_from
 
-        # список дат заездного плана, для вывода в колонках
-        date_list = []
-
         # строки
         rows = []
 
@@ -319,44 +305,45 @@ class Voucher(object):
         # день заезда
         arrival_day = 1
 
-        # день пребывания
-        stay_day = 1
-
-        # необходимое кол-во дней для пропуска.
-        # Используется для новых строк.
-        skip_days = 0
-
-        # Строка, в виде списка в котором каждый элемент списка является ячейкой для таблицы.
-        row = []
+        rest_beds = self.bed_capacity
 
         # пробежимся по всему периоду заездного плана
         for day in range(period_delta.days):
             # получим дату для списка
             date_item = date_from + timedelta(days=day)
-            # добавим дату в колонку и заодно приведём её к нужному стандарту.
-            date_list.append(date_item.strftime('%a, %d %b %y'))
 
-            # проверим дату на нахождения в период остановки санатория
-            if stop_date_from <= date_item <= stop_date_to:
-                row.append('остановка санатория')
+            end_date = date_item + timedelta(days=self.stay_days)
+            row = [
+                self.sanatorium_name,
+                arrival_no,
+                arrival_day,
+                date_item.strftime('%d.%m.%y - %a'),
+                self.stay_days,
+                end_date,
+                self.tours_per_day,
+                rest_beds,
+                self.days_between_arrival,
+            ]
+
+            if arrival_day <= self.arrival_days:
+                arrival_day += 1
             else:
+                arrival_day = 1
 
-                if stay_day == 1:
-                    row.append('Заезд %i.%i - %i путёвок' % (arrival_no, arrival_day, self.tours_per_day))
-                    stay_day += 1
-                elif 1 < stay_day < self.stay_days:
-                    row.append(self.tours_per_day)
-                    stay_day += 1
-                elif stay_day == self.stay_days:
-                    row.append('выехали %i путёвок' % self.tours_per_day)
-                    stay_day += 1
-                else:
-                    row.append('')
-        rows.append(row)
+            rows.append(row)
 
-        print(rows)
         df = pd.DataFrame(
             rows,
-            columns=date_list
+            columns=[
+                'Здравница',
+                'Заезд',
+                'День заезда',
+                'Начало заезда',
+                'Кол-во дней',
+                'Окончание заезда',
+                'Кол-во путёвок',
+                'Остаток коек',
+                'Между заездом дн.',
+            ]
         )
         return df
