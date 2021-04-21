@@ -28,7 +28,7 @@ departments = [
 ]
 department = st.sidebar.selectbox('Отделение', departments, 1)
 
-bed_capacity = st.sidebar.number_input('Коечная мощность', 300)
+bed_capacity = st.sidebar.number_input('Коечная мощность', value=300, min_value=1)
 period = st.sidebar.date_input(
     'Период формирования плана',
     (date(today.year, 1, 1), date(today.year, 4, 9)),
