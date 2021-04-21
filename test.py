@@ -13,9 +13,8 @@ today = date.today()
 
 st.set_page_config(layout='wide')
 st.title('Выпуск путёвок')
-st.write('Путёвки автоматически выпускаются на 1 календарный год (12 месяцев) по указанным параметрам.')
-
 st.header('Заездный план выпуска путёвок')
+
 st.sidebar.header('Параметры плана функционирования санатория')
 sanatorium_name = st.sidebar.text_input('Наименование санатория', 'Маяк')
 
@@ -40,7 +39,7 @@ period = st.sidebar.date_input(
 
 days_of_week = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье']
 non_arrivals_days = st.sidebar.multiselect('Незаездные дни', options=days_of_week, default=['Понедельник', 'Вторник'])
-non_arrivals_days = [days_of_week.index(x) + 1 for x in non_arrivals_days]
+non_arrivals_days = [days_of_week.index(x) for x in non_arrivals_days]
 
 
 days_of_stay = st.sidebar.selectbox('Количество дней пребывания', [14, 18, 21, 29, 30], 0)
@@ -91,4 +90,15 @@ vouchers.reducing_period = reducing_period
 
 st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
 
-st.dataframe(vouchers.dataframe)
+
+def hover(hover_color='#ffff99'):
+    return dict(
+        selector='tr:hover',
+        props=[
+            ('background-color', '%s' % hover_color)
+        ]
+    )
+
+
+styles = [hover(), ]
+st.dataframe(vouchers.dataframe.style.set_table_styles(styles))
