@@ -1,12 +1,5 @@
-import math
-
 import streamlit as st
-import numpy as np
-import pandas as pd
-import altair as alt
-import pydeck as pdk
-# import time
-from datetime import datetime, date, timedelta
+from datetime import date
 from vouchers import Voucher
 
 today = date.today()
@@ -64,41 +57,30 @@ vouchers = Voucher(
 )
 st.sidebar.info('Количество путевок в день: %i' % vouchers.tours_per_day)
 
-st.sidebar.subheader('Остановки санатория')
-stops_period = st.sidebar.date_input(
-    'Период',
-    (date(today.year, 2, 1), date(today.year, 2, 5)),
-    min_value=period[0],
-    max_value=period[1]
-)
-stops_description = st.sidebar.text_input('Причина', 'косметический ремонт')
-vouchers.stop_description = stops_description
-vouchers.stop_period = stops_period
+# st.sidebar.subheader('Остановки санатория')
+# stops_period = st.sidebar.date_input(
+#     'Период',
+#     (date(today.year, 2, 1), date(today.year, 2, 5)),
+#     min_value=period[0],
+#     max_value=period[1]
+# )
+# stops_description = st.sidebar.text_input('Причина', 'косметический ремонт')
+# vouchers.stop_description = stops_description
+# vouchers.stop_period = stops_period
 
-st.sidebar.subheader('Сокращение номерного фонда')
-reducing_period = st.sidebar.date_input(
-    'Период',
-    (date(today.year, 3, 1), date(today.year, 3, 15)),
-    min_value=period[0],
-    max_value=period[1]
-)
-reduce_beds = st.sidebar.number_input('Количество койкомест', value=10, min_value=0, max_value=int(bed_capacity))
-reduce_description = st.sidebar.text_input('Причина', 'евро ремонт')
-vouchers.reduce_beds = reduce_beds
-vouchers.reduce_description = reduce_description
-vouchers.reducing_period = reducing_period
+# st.sidebar.subheader('Сокращение номерного фонда')
+# reducing_period = st.sidebar.date_input(
+#     'Период',
+#     (date(today.year, 3, 1), date(today.year, 3, 15)),
+#     min_value=period[0],
+#     max_value=period[1]
+# )
+# reduce_beds = st.sidebar.number_input('Количество койкомест', value=10, min_value=0, max_value=int(bed_capacity))
+# reduce_description = st.sidebar.text_input('Причина', 'евро ремонт')
+# vouchers.reduce_beds = reduce_beds
+# vouchers.reduce_description = reduce_description
+# vouchers.reducing_period = reducing_period
+#
+# st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
 
-st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
-
-
-def hover(hover_color='#ffff99'):
-    return dict(
-        selector='tr:hover',
-        props=[
-            ('background-color', '%s' % hover_color)
-        ]
-    )
-
-
-styles = [hover(), ]
-st.dataframe(vouchers.dataframe.style.set_table_styles(styles))
+st.dataframe(vouchers.dataframe)
