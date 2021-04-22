@@ -273,6 +273,8 @@ class Voucher(object):
                     self.CAPTIONS['non_arrivals_days'],
                     'Парамер %s должен быть целочисленным значением от 0 до 6 включительно.'
                 )
+            if len(value) >= 7:
+                raise Exception('Нельзя указывать все дни недели.')
         else:
             raise VoucherList(self.CAPTIONS['non_arrivals_days'])
 
@@ -288,126 +290,142 @@ class Voucher(object):
 
     @property
     def dataframe(self) -> pd.DataFrame:
-        # даты формирования заездного плана санатория
-        date_from, date_to = self.period
-        date_to_with_prevention_day = date_to - timedelta(days=self.days_between_arrival)
+        # # даты формирования заездного плана санатория
+        # date_from, date_to = self.period
+        # date_to_with_prevention_day = date_to - timedelta(days=self.days_between_arrival)
+        # q = self.get_arrival(date_from, date_to)
+        #
+        # # даты плановой остановки санатория
+        # stop_date_from, stop_date_to = self.stop_period
+        # stop_period = dtr.DateTimeRange(stop_date_from, stop_date_to)
+        #
+        # # даты сокращения коечной мощности санатория
+        # reduce_date_from, reduce_date_to = self.reducing_period
+        # reducing_period = dtr.DateTimeRange(reduce_date_from, reduce_date_to)
+        #
+        # # подсчитаем длительность периода заездного плана санатория
+        # period_delta = date_to - date_from
+        #
+        # # строки
+        # rows = []
+        #
+        # # номер заезда
+        # arrival_no = 1
+        #
+        # # день заезда
+        # arrival_day = 1
+        #
+        # # изначальное кол-во зарезервированных койкомест
+        # rest_beds = 0
+        #
+        # # дни пропуска — в эти дни проходит профилактика и в них не заселяем
+        # skip_days = [0] * self.arrival_days
+        #
+        # # подготовим массив для хранения конечных даты для заездов и кол-ва путёвок,
+        # # чтобы не заниматься дополнительными проверками в цикле.
+        # end_dates = [[]] * self.arrival_days
+        # tours_per_day = {}
+        #
+        # # пробежимся по всему периоду заездного плана
+        # for day in range(period_delta.days):
+        #     # получим текущую дату
+        #     start_date = date_from + timedelta(days=day)
+        #
+        #     # Пропускаем дни в которые санаторий не работает
+        #     if stop_date_from <= start_date < stop_date_to:
+        #         continue
+        #     elif start_date == stop_date_to:
+        #         # в последний день сбрасываем все счётчики
+        #         arrival_no += 1
+        #         rest_beds = 0
+        #         continue
+        #
+        #     # Пропускаем дни недели в которые нет заселения
+        #     if start_date.weekday() in self.non_arrivals_days:
+        #         continue
+        #
+        #     # вычисляем дату окончания заезда
+        #     end_date = start_date + timedelta(days=self.stay_days - 1)
+        #
+        #     # создадим период заезда
+        #     tour_period = dtr.DateTimeRange(start_date, end_date)
+        #
+        #     # также пропускаем дни, если период заезда пересекается с периодом остановки санатория
+        #     if tour_period.is_intersection(stop_period):
+        #         continue
+        #
+        #     # вычисляем кол-во путёвок в день и коечную мощность для текущего заезда
+        #     bed_capacity = self.bed_capacity
+        #     if tour_period.is_intersection(reducing_period):
+        #         tours_per_day.update({start_date: self.reduce_tours_per_day})
+        #         bed_capacity -= self.reduce_beds
+        #     else:
+        #         tours_per_day.update({start_date: self.tours_per_day})
+        #
+        #     # удаляем съехавших
+        #     if start_date in end_dates[arrival_day - 1]:
+        #         rest_beds -= tours_per_day.get(start_date, 0)
+        #         skip_days[arrival_day - 1] = self.days_between_arrival
+        #         print(skip_days)
+        #
+        #     # пропускаем профилактические дни
+        #     if skip_days[arrival_day - 1]:
+        #         print(arrival_day)
+        #     #     skip_days[arrival_day - 1] -= 1
+        #     #     continue
+        #
+        #     # проверяем чтобы дата окончания заезда не вышла за пределы периода формирования плана
+        #     if end_date <= date_to_with_prevention_day:
+        #         # Проверяем возможность выписки путёвок в назначенную дату
+        #         # и добавляем заезд с определённым заранее кол-вом путёвок
+        #         if rest_beds < bed_capacity:
+        #             # добавим дату выезда в список выездных дат
+        #             end_dates[arrival_day - 1].append(end_date)
+        #
+        #             # прибавили новых проживающих
+        #             rest_beds += tours_per_day.get(start_date)
+        #
+        #             # наполняем строку данными по заезду
+        #             row = [
+        #                 self.sanatorium_name,
+        #                 arrival_no,
+        #                 arrival_day,
+        #                 tour_period.start_datetime.strftime('%d.%m.%y - %a'),
+        #                 self.stay_days,
+        #                 tour_period.end_datetime.strftime('%d.%m.%y'),
+        #                 tours_per_day.get(start_date),
+        #                 rest_beds,
+        #                 self.days_between_arrival,
+        #             ]
+        #
+        #             # добавим строку в список строк
+        #             rows.append(row)
+        #
+        #             # сделаем итерацию дня заезда и плюс номер заезда
+        #             if arrival_day < self.arrival_days:
+        #                 arrival_day += 1
+        #             elif arrival_day == self.arrival_days:
+        #                 arrival_day = 1
+        #                 arrival_no += 1
 
-        # даты плановой остановки санатория
-        stop_date_from, stop_date_to = self.stop_period
-        stop_period = dtr.DateTimeRange(stop_date_from, stop_date_to)
-
-        # даты сокращения коечной мощности санатория
-        reduce_date_from, reduce_date_to = self.reducing_period
-        reducing_period = dtr.DateTimeRange(reduce_date_from, reduce_date_to)
-
-        # подсчитаем длительность периода заездного плана санатория
-        period_delta = date_to - date_from
-
-        # строки
         rows = []
-
-        # номер заезда
-        arrival_no = 1
-
-        # день заезда
-        arrival_day = 1
-
-        # изначальное кол-во зарезервированных койкомест
-        rest_beds = 0
-
-        # дни пропуска — в эти дни проходит профилактика и в них не заселяем
-        skip_days = [[]] * self.arrival_days
-
-        # подготовим массив для хранения конечных даты для заездов и кол-ва путёвок,
-        # чтобы не заниматься дополнительными проверками в цикле.
-        end_dates = [[]] * self.arrival_days
-        tours_per_day = {}
-
-        # пробежимся по всему периоду заездного плана
-        for day in range(period_delta.days):
-            # получим текущую дату
-            start_date = date_from + timedelta(days=day)
-
-            # Пропускаем дни в которые санаторий не работает
-            if stop_date_from <= start_date < stop_date_to:
-                continue
-            elif start_date == stop_date_to:
-                # в последний день сбрасываем все счётчики
-                arrival_no += 1
-                rest_beds = 0
-                continue
-
-            # Пропускаем дни недели в которые нет заселения
-            if start_date.weekday() in self.non_arrivals_days:
-                continue
-
-            # вычисляем дату окончания заезда
-            end_date = start_date + timedelta(days=self.stay_days-1)
-
-            # создадим период заезда
-            tour_period = dtr.DateTimeRange(start_date, end_date)
-
-            # также пропускаем дни, если период заезда пересекается с периодом остановки санатория
-            if tour_period.is_intersection(stop_period):
-                continue
-
-            # вычисляем кол-во путёвок в день и коечную мощность для текущего заезда
-            bed_capacity = self.bed_capacity
-            if tour_period.is_intersection(reducing_period):
-                tours_per_day.update({start_date: self.reduce_tours_per_day})
-                bed_capacity -= self.reduce_beds
-            else:
-                tours_per_day.update({start_date: self.tours_per_day})
-
-            # удаляем съехавших
-            if start_date in end_dates[arrival_day - 1]:
-                # print('=== Выселение заезда ===')
-                # print('End dates: %s' % end_dates)
-                # print('Start date: %s' % (start_date - timedelta(days=self.stay_days - 1)))
-                # print('End date: %s' % start_date)
-                # print('Tours/day: %i' % tours_per_day.get(start_date, 0))
-                rest_beds -= tours_per_day.get(start_date, 0)
-                # skip_days[arrival_day - 1] = self.days_between_arrival
-
-            # пропускаем профилактические дни
-            # if skip_days[arrival_day - 1]:
-            #     print('Day %i' % arrival_day)
-            #     skip_days[arrival_day - 1] -= 1
-            #     continue
-
-            # проверяем чтобы дата окончания заезда не вышла за пределы периода формирования плана
-            if end_date <= date_to_with_prevention_day:
-                # Проверяем возможность выписки путёвок в назначенную дату
-                # и добавляем заезд с определённым заранее кол-вом путёвок
-                if rest_beds < bed_capacity:
-                    # добавим дату выезда в список выездных дат
-                    end_dates[arrival_day - 1].append(end_date)
-
-                    # прибавили новых проживающих
-                    rest_beds += tours_per_day.get(start_date)
-
-                    # наполняем строку данными по заезду
-                    row = [
-                        self.sanatorium_name,
-                        arrival_no,
-                        arrival_day,
-                        tour_period.start_datetime.strftime('%d.%m.%y - %a'),
-                        self.stay_days,
-                        tour_period.end_datetime.strftime('%d.%m.%y'),
-                        tours_per_day.get(start_date),
-                        rest_beds,
-                        self.days_between_arrival,
-                    ]
-
-                    # добавим строку в список строк
-                    rows.append(row)
-
-                    # сделаем итерацию дня заезда и плюс номер заезда
-                    if arrival_day < self.arrival_days:
-                        arrival_day += 1
-                    elif arrival_day == self.arrival_days:
-                        arrival_day = 1
-                        arrival_no += 1
+        data = []
+        while True:
+            data = self.get_arrival(data)
+            if not data:
+                break
+            for row in data:
+                rows.append([
+                    self.sanatorium_name,
+                    row[0],
+                    row[1],
+                    row[2].strftime('%d.%m.%y - %a'),
+                    self.stay_days,
+                    row[3].strftime('%d.%m.%y'),
+                    row[4],
+                    '%i/%i' % (row[5], self.bed_capacity),
+                    self.days_between_arrival
+                ])
 
         df = pd.DataFrame(
             rows,
@@ -424,3 +442,74 @@ class Voucher(object):
             ]
         )
         return df
+
+    def get_arrival(self, prev_arrival: Union[list, None] = None) -> list:
+        data = []
+        rest_beds = prev_arrival[-1][5] if prev_arrival else 0
+        arrival_number = prev_arrival[-1][0] + 1 if prev_arrival else 1
+        arrival_day = 0
+        day_iterate = 0
+        start_date, end_date = self.period
+        prev_arrival_end_date = []
+        if prev_arrival:
+            start_date = prev_arrival[arrival_day][3]
+            prev_arrival_end_date = [x[3] for x in prev_arrival]
+        good_day = True
+        bed_capacity = self.bed_capacity
+        tours_per_day = self.tours_per_day
+
+        while arrival_day < self.arrival_days:
+            # начальная дата — заселение
+            arrival_start_date = start_date + timedelta(days=day_iterate)
+            # конечная дата — выселение
+            arrival_end_date = arrival_start_date + timedelta(days=self.stay_days - 1)
+
+            if prev_arrival:
+                try:
+                    if arrival_start_date in prev_arrival_end_date:
+                        # вычитаем съехавших из санатория
+                        rest_beds -= prev_arrival[arrival_day][4]
+                except IndexError:
+                    pass
+
+                try:
+                    preventive_day = prev_arrival[arrival_day][3] + timedelta(days=self.days_between_arrival + 1)
+                    if preventive_day > arrival_start_date:
+                        # пометим дни в которые ещё нельзя делать заезд
+                        good_day = False
+                    else:
+                        good_day = True
+                except IndexError:
+                    pass
+
+            # если дата выселения выходит за границы конца заездного плана прерываем цикл
+            # TODO: узнать нужно ли при этой проверке разрешать последний день проживая ставить последним днём?
+            if arrival_end_date > end_date:
+                break
+
+            # проверяем чтобы заезд был не в запрещённые дни недели
+            if (arrival_start_date.weekday() not in self.non_arrivals_days and
+                    good_day and
+                    rest_beds + tours_per_day <= bed_capacity):
+
+                # добавим поселенцев в санаторйи
+                rest_beds += tours_per_day
+
+                # добъём кол-во путёвок по остаточным свободным местам
+                if arrival_day + 1 == self.arrival_days and rest_beds < bed_capacity:
+                    odd = bed_capacity - rest_beds
+                    tours_per_day += odd
+                    rest_beds += odd
+
+                # сформируем массив данных
+                data.append([
+                    arrival_number,
+                    arrival_day + 1,
+                    arrival_start_date,
+                    arrival_end_date,
+                    tours_per_day,
+                    rest_beds,
+                ])
+                arrival_day += 1
+            day_iterate += 1
+        return data
