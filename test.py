@@ -1,10 +1,10 @@
 import streamlit as st
-from datetime import date
+from datetime import date, timedelta
 from vouchers import Voucher
 
 today = date.today()
 
-st.set_page_config(layout='wide')
+st.set_page_config(layout='wide', page_title='Тестирование алгоритма выпуска путёвок')
 st.title('Выпуск путёвок')
 st.header('Заездный план выпуска путёвок')
 
@@ -57,16 +57,17 @@ vouchers = Voucher(
 )
 st.sidebar.info('Количество путевок в день: %i' % vouchers.tours_per_day)
 
-# st.sidebar.subheader('Остановки санатория')
-# stops_period = st.sidebar.date_input(
-#     'Период',
-#     (date(today.year, 2, 1), date(today.year, 2, 5)),
-#     min_value=period[0],
-#     max_value=period[1]
-# )
-# stops_description = st.sidebar.text_input('Причина', 'косметический ремонт')
-# vouchers.stop_description = stops_description
-# vouchers.stop_period = stops_period
+stop_sanatorium = st.sidebar.checkbox('Остановки санатория')
+if stop_sanatorium:
+    stops_period = st.sidebar.date_input(
+        'Период',
+        value=(date(today.year, 2, 1), date(today.year, 2, 5)),
+        min_value=period[0],
+        max_value=period[1]
+    )
+    stops_description = st.sidebar.text_input('Причина', 'косметический ремонт')
+    vouchers.stop_description = stops_description
+    vouchers.stop_period = stops_period
 
 # st.sidebar.subheader('Сокращение номерного фонда')
 # reducing_period = st.sidebar.date_input(
@@ -84,3 +85,5 @@ st.sidebar.info('Количество путевок в день: %i' % vouchers
 # st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
 
 st.dataframe(vouchers.dataframe)
+with st.beta_expander('Документация'):
+    st.help(vouchers)

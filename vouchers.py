@@ -25,7 +25,7 @@ class Voucher(object):
     Класс реализует алгоритм формирования заездных планов выпуска путёвок
     на основе обязательных и не обязательных атрибутов.
 
-    Attributes
+    Атрибуты
     ----------
     bed_capacity : int
         Коечная мощность. [Обязательный]
@@ -52,6 +52,9 @@ class Voucher(object):
     non_arrivals_days: list[int]
         При необходимости указываются незаездные дни недели от 1 до нескольких.
         Указывается номер дня недели от 1 до 7, где 1 — понедельник, а 7 — воскресенье.
+
+    dataframe:
+        Атрибут возвращает датафрейм для формирования таблицы данных. Только для чтения.
     """
     CAPTIONS = {
         'bed_capacity': 'bed_capacity (Коечная мощность)',
@@ -450,10 +453,23 @@ class Voucher(object):
         arrival_day = 0
         day_iterate = 0
         start_date, end_date = self.period
-        prev_arrival_end_date = []
+
+        # дни/период остановки санатория
+        stop_period = []
+        if self.stop_period:
+            stop_period = dtr.DateTimeRange(*self.stop_period)
+
+        prev_arrival_end_dates = []
         if prev_arrival:
             start_date = prev_arrival[arrival_day][3]
-            prev_arrival_end_date = [x[3] for x in prev_arrival]
+            prev_arrival_end_dates = [x[3] for x in prev_arrival]
+            # настроим все необходимые параметры если была остановка санатория
+            # и предыдущий заезд полностью не завершился
+            if stop_period and start_date < stop_period.end_datetime.date() and len(prev_arrival) < self.arrival_days:
+                start_date = stop_period.end_datetime.date() + timedelta(days=1)
+                rest_beds = 0
+                prev_arrival = []
+
         good_day = True
         bed_capacity = self.bed_capacity
         tours_per_day = self.tours_per_day
@@ -463,10 +479,14 @@ class Voucher(object):
             arrival_start_date = start_date + timedelta(days=day_iterate)
             # конечная дата — выселение
             arrival_end_date = arrival_start_date + timedelta(days=self.stay_days - 1)
+            arrival_period = dtr.DateTimeRange(arrival_start_date, arrival_end_date)
+
+            if stop_period and arrival_period.is_intersection(stop_period):
+                break
 
             if prev_arrival:
                 try:
-                    if arrival_start_date in prev_arrival_end_date:
+                    if arrival_start_date in prev_arrival_end_dates:
                         # вычитаем съехавших из санатория
                         rest_beds -= prev_arrival[arrival_day][4]
                 except IndexError:
@@ -491,11 +511,10 @@ class Voucher(object):
             if (arrival_start_date.weekday() not in self.non_arrivals_days and
                     good_day and
                     rest_beds + tours_per_day <= bed_capacity):
-
-                # добавим поселенцев в санаторйи
+                # добавим поселенцев в санаторий
                 rest_beds += tours_per_day
 
-                # добъём кол-во путёвок по остаточным свободным местам
+                # добьём кол-во путёвок по остаточным свободным местам
                 if arrival_day + 1 == self.arrival_days and rest_beds < bed_capacity:
                     odd = bed_capacity - rest_beds
                     tours_per_day += odd
@@ -513,3 +532,25 @@ class Voucher(object):
                 arrival_day += 1
             day_iterate += 1
         return data
+
+    def get_arrival_data(self, data, start_date, end_date, rest_beds, tours_per_day, arrival_number, arrival_day, bed_capacity,):
+        # добавим поселенцев в санаторий
+        rest_beds += tours_per_day
+
+        # добъём кол-во путёвок по остаточным свободным местам
+        if arrival_day + 1 == self.arrival_days and rest_beds < bed_capacity:
+            odd = bed_capacity - rest_beds
+            tours_per_day += odd
+            rest_beds += odd
+
+        # сформируем массив данных
+        data.append([
+            arrival_number,
+            arrival_day + 1,
+            start_date,
+            end_date,
+            tours_per_day,
+            rest_beds,
+        ])
+
+        return date
