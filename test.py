@@ -57,7 +57,7 @@ vouchers = Voucher(
 )
 st.sidebar.info('Количество путевок в день: %i' % vouchers.tours_per_day)
 
-stop_sanatorium = st.sidebar.checkbox('Остановки санатория')
+stop_sanatorium = st.sidebar.checkbox('Плановая остановка санатория')
 if stop_sanatorium:
     stops_period = st.sidebar.date_input(
         'Период',
@@ -69,20 +69,21 @@ if stop_sanatorium:
     vouchers.stop_description = stops_description
     vouchers.stop_period = stops_period
 
-# st.sidebar.subheader('Сокращение номерного фонда')
-# reducing_period = st.sidebar.date_input(
-#     'Период',
-#     (date(today.year, 3, 1), date(today.year, 3, 15)),
-#     min_value=period[0],
-#     max_value=period[1]
-# )
-# reduce_beds = st.sidebar.number_input('Количество койкомест', value=10, min_value=0, max_value=int(bed_capacity))
-# reduce_description = st.sidebar.text_input('Причина', 'евро ремонт')
-# vouchers.reduce_beds = reduce_beds
-# vouchers.reduce_description = reduce_description
-# vouchers.reducing_period = reducing_period
-#
-# st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
+reduce_sanatorium = st.sidebar.checkbox('Сокращение номерного фонда')
+if reduce_sanatorium:
+    reducing_period = st.sidebar.date_input(
+        'Период',
+        (date(today.year, 3, 1), date(today.year, 3, 15)),
+        min_value=period[0],
+        max_value=period[1]
+    )
+    reduce_beds = st.sidebar.number_input('Количество койкомест', value=10, min_value=0, max_value=int(bed_capacity))
+    reduce_description = st.sidebar.text_input('Причина', 'евро ремонт')
+    vouchers.reduce_beds = reduce_beds
+    vouchers.reduce_description = reduce_description
+    vouchers.reducing_period = reducing_period
+
+    st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
 
 st.dataframe(vouchers.dataframe)
 with st.beta_expander('Документация'):

@@ -426,7 +426,7 @@ class Voucher(object):
                     self.stay_days,
                     row[3].strftime('%d.%m.%y'),
                     row[4],
-                    '%i/%i' % (row[5], self.bed_capacity),
+                    '%i/%i' % (row[5], row[6]),
                     self.days_between_arrival
                 ])
 
@@ -459,6 +459,11 @@ class Voucher(object):
         if self.stop_period:
             stop_period = dtr.DateTimeRange(*self.stop_period)
 
+        # дни/период ограничения санатория
+        reducing_period = []
+        if self.reducing_period:
+            reducing_period = dtr.DateTimeRange(*self.reducing_period)
+
         prev_arrival_end_dates = []
         if prev_arrival:
             start_date = prev_arrival[arrival_day][3]
@@ -479,6 +484,7 @@ class Voucher(object):
             arrival_start_date = start_date + timedelta(days=day_iterate)
             # конечная дата — выселение
             arrival_end_date = arrival_start_date + timedelta(days=self.stay_days - 1)
+            # период заселения
             arrival_period = dtr.DateTimeRange(arrival_start_date, arrival_end_date)
 
             if stop_period and arrival_period.is_intersection(stop_period):
@@ -507,6 +513,12 @@ class Voucher(object):
             if arrival_end_date > end_date:
                 break
 
+            # установим коечную мощность и кол-во путёвок в день для заселения,
+            # если период заселения пересекается в периодом ограниченного функционирования санатория
+            if reducing_period and arrival_period.is_intersection(reducing_period):
+                tours_per_day = self.reduce_tours_per_day
+                bed_capacity = self.bed_capacity - self.reduce_beds
+
             # проверяем чтобы заезд был не в запрещённые дни недели
             if (arrival_start_date.weekday() not in self.non_arrivals_days and
                     good_day and
@@ -528,6 +540,7 @@ class Voucher(object):
                     arrival_end_date,
                     tours_per_day,
                     rest_beds,
+                    bed_capacity,
                 ])
                 arrival_day += 1
             day_iterate += 1
