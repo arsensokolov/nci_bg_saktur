@@ -11,8 +11,6 @@ st.header('Заездный план выпуска путёвок')
 st.sidebar.header('Параметры плана функционирования санатория')
 sanatorium_name = st.sidebar.text_input('Наименование санатория', 'Маяк')
 
-plan_name = st.sidebar.text_input('Наименование плана', 'План мать и дитя %s' % today.year)
-
 departments = [
     'Отделение "Мать и дитя"',
     'Оздоровительное отделение',
@@ -48,6 +46,7 @@ days_between_arrival = st.sidebar.number_input('Количество дней м
 
 vouchers = Voucher(
     sanatorium_name=sanatorium_name,
+    department=department,
     bed_capacity=bed_capacity,
     stay_days=days_of_stay,
     arrival_days=arrival_days,
@@ -65,8 +64,6 @@ if stop_sanatorium:
         min_value=period[0],
         max_value=period[1]
     )
-    stops_description = st.sidebar.text_input('Причина', 'косметический ремонт')
-    vouchers.stop_description = stops_description
     vouchers.stop_period = stops_period
 
 reduce_sanatorium = st.sidebar.checkbox('Сокращение номерного фонда')
@@ -78,9 +75,7 @@ if reduce_sanatorium:
         max_value=period[1]
     )
     reduce_beds = st.sidebar.number_input('Количество койкомест', value=10, min_value=0, max_value=int(bed_capacity))
-    reduce_description = st.sidebar.text_input('Причина', 'евро ремонт')
     vouchers.reduce_beds = reduce_beds
-    vouchers.reduce_description = reduce_description
     vouchers.reducing_period = reducing_period
 
     st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
