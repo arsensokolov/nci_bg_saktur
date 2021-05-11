@@ -38,17 +38,13 @@ class Voucher(object):
     stop_period: tuple[date, date]
         Период остановки санатория, передаются даты (date) от и по в кортеже (tuple).
         Не может выходить за границы периода формирования плана.
-    stops_description: str
-        Причина остановки санатория. Указывается как обязательный только
-        при указании периода остановки санатория.
     reducing_period: tuple[date, date]
         Период сокращение номерного фонда. Передаются даты (date) от и по в кортеже (tuple).
         Не может выходить за границы периода формирования плана.
-    reduce_description: str
-        Причина сокращение номерного фонда. Указывается как обязательный только при указании
-        периода сокращения номерного фонда.
-    days_between_arrival: int
         При необходимости указывается кол-во дней между заездами для проведения профилактических мероприятий.
+    reduce_beds: int
+        Указывается кол-во коек которые будет убрано из эксплуатации на период сокращения номерного фонда.
+        Не может быть больше коечной мощности санатория.
     non_arrivals_days: list[int]
         При необходимости указываются незаездные дни недели от 1 до нескольких.
         Указывается номер дня недели от 1 до 7, где 1 — понедельник, а 7 — воскресенье.
@@ -57,6 +53,7 @@ class Voucher(object):
         Атрибут возвращает датафрейм для формирования таблицы данных. Только для чтения.
     """
     CAPTIONS = {
+        'type': 'type (Тип плана)',
         'bed_capacity': 'bed_capacity (Коечная мощность)',
         'stay_days': 'stay_days (Количество дней пребывания)',
         'arrival_days': 'arrival_days (Количество заездных дней)',
@@ -66,35 +63,40 @@ class Voucher(object):
         'reducing_period': 'reducing_period (Период сокращение номерного фонда)',
         'reduce_beds': 'reduce_beds (Количество койкомест)',
         'reduce_description': 'reduce_description (Причина сокращение номерного фонда)',
+        'sanitary_days': 'sanitary_days (Количество санитарных дней)',
         'days_between_arrival': 'days_between_arrival (Количество дней между заездами)',
         'non_arrivals_days': 'non_arrivals_days (Незаездные дни)',
     }
 
     # Защищенные дефолтные значения не обязательных параметров.
     # Для правильной работы не менять!!!
+    __arrival_days = 0
     __stop_period = None
     __stop_description = ''
     __reducing_period = None
     __reduce_beds = 0
     __reduce_description = ''
     __days_between_arrival = 0
+    __sanitary_days = 0
     __non_arrivals_days = []
 
     def __init__(self, **kwargs) -> NoReturn:
         # Обязательные параметры
+        self.type: int = kwargs.get('type', 0)
         self.bed_capacity: int = kwargs.get('bed_capacity', 0)
         self.stay_days: int = kwargs.get('stay_days', 0)
-        self.arrival_days: int = kwargs.get('arrival_days', 0)
         self.period: Tuple[date, date] = kwargs.get('period', None)
         self.sanatorium_name: str = kwargs.get('sanatorium_name', '')
         self.department: str = kwargs.get('department', '')
 
         # Не обязательные параметры
+        self.arrival_days: int = kwargs.get('arrival_days', self.__arrival_days)
         self.stop_period: Tuple[date, date] = kwargs.get('stop_period', self.__stop_period)
         self.stop_description: str = kwargs.get('stop_description', self.__stop_description)
         self.reducing_period: Tuple[date, date] = kwargs.get('reducing_period', self.__reducing_period)
         self.reduce_beds: int = kwargs.get('reduce_beds', self.__reduce_beds)
         self.reduce_description: str = kwargs.get('reduce_description', self.__reduce_description)
+        self.sanitary_days: int = kwargs.get('sanitary_days', self.__sanitary_days)
         self.days_between_arrival: int = kwargs.get('days_between_arrival', self.__days_between_arrival)
         self.non_arrivals_days: list = kwargs.get('non_arrivals_days', self.__non_arrivals_days)
 
@@ -129,6 +131,10 @@ class Voucher(object):
     def __validate__(self) -> NoReturn:
         """Приватная функция валидации полученных данных при инициализации класса."""
 
+        # Проверим чтобы тип плана передавался конкретным целочисленным значением
+        if not isinstance(self.type, int) and 0 > self.type > 1:
+            raise VoucherRequired(self.CAPTIONS['type'])
+
         # Проверим указанную коечную мощность
         if not (self.bed_capacity and isinstance(self.bed_capacity, int) and self.bed_capacity > 0):
             raise VoucherIntMoreZero(self.CAPTIONS['bed_capacity'])
@@ -136,12 +142,6 @@ class Voucher(object):
         # Проверим указанное кол-во дней пребывания по 1 путёвке
         if not (self.stay_days and isinstance(self.stay_days, int) and self.stay_days > 0):
             raise VoucherIntMoreZero(self.CAPTIONS['stay_days'])
-
-        # Проверим указанное кол-во заездных дней
-        if not (self.arrival_days and isinstance(self.arrival_days, int) and self.stay_days >= self.arrival_days > 0):
-            raise VoucherIntBetween(
-                (self.CAPTIONS['arrival_days'], self.CAPTIONS['stay_days'])
-            )
 
         # Проверим указанный период формирования плана
         if isinstance(self.period, tuple) and len(self.period) == 2:
@@ -151,14 +151,35 @@ class Voucher(object):
             raise VoucherTuple(self.CAPTIONS['period'])
 
         # Проверим не обязательные параметры
+        if self.arrival_days:
+            self.__validate_arrival_days(self.arrival_days)
         if self.stop_period:
             self.__validate_stop_period(self.stop_period)
         if self.reducing_period:
             self.__validate_reducing_period(self.reducing_period)
+        if self.sanitary_days:
+            self.__validate_sanitary_days(self.sanitary_days)
         if self.days_between_arrival:
             self.__validate_days_between_arrival(self.days_between_arrival)
         if self.non_arrivals_days:
             self.__validate_non_arrivals_days(self.non_arrivals_days)
+
+    @property
+    def arrival_days(self) -> int:
+        return self.__arrival_days
+
+    @arrival_days.setter
+    def arrival_days(self, value: int) -> NoReturn:
+        if value:
+            self.__validate_arrival_days(value)
+        self.__arrival_days = value
+
+    def __validate_arrival_days(self, value) -> NoReturn:
+        """Валидатор проверяет указанное кол-во заездных дней."""
+        if not (isinstance(value, int) and self.stay_days >= value > 0):
+            raise VoucherIntBetween(
+                (self.CAPTIONS['arrival_days'], self.CAPTIONS['stay_days'])
+            )
 
     @property
     def stop_description(self) -> str:
@@ -246,6 +267,22 @@ class Voucher(object):
         #     raise VoucherRequired(self.CAPTIONS['reduce_description'])
 
     @property
+    def sanitary_days(self) -> int:
+        return self.__sanitary_days
+
+    @sanitary_days.setter
+    def sanitary_days(self, value: int) -> NoReturn:
+        self.__validate_sanitary_days(value)
+        self.__sanitary_days = value
+
+    def __validate_sanitary_days(self, value) -> NoReturn:
+        if not isinstance(value, int) and value < 0:
+            raise VoucherIntMoreZero(
+                self.CAPTIONS['sanitary_days'],
+                'Параметр %s должен быть целочисленным значением больше или равно 0.'
+            )
+
+    @property
     def days_between_arrival(self) -> int:
         return self.__days_between_arrival
 
@@ -285,7 +322,10 @@ class Voucher(object):
     @property
     def tours_per_day(self) -> int:
         """Кол-во путёвок в день."""
-        return math.floor(self.bed_capacity / self.arrival_days)
+        if self.type == 0:
+            return math.floor(self.bed_capacity / self.arrival_days)
+        elif self.type == 1:
+            return math.floor(self.bed_capacity / self.stay_days)
 
     @property
     def reduce_tours_per_day(self) -> int:
@@ -301,22 +341,46 @@ class Voucher(object):
             if not data:
                 break
             for row in data:
-                rows.append([
-                    self.sanatorium_name,
-                    self.department,
-                    row[0],
-                    row[1],
-                    row[2].strftime('%d.%m.%y - %a'),
-                    self.stay_days,
-                    row[3].strftime('%d.%m.%y'),
-                    row[4],
-                    '%i/%i' % (row[5], row[6]),
-                    self.days_between_arrival
-                ])
+                if self.type:
+                    rows.append([
+                        self.sanatorium_name,
+                        self.department,
+                        row[0],
+                        row[2].strftime('%d.%m.%y - %a'),
+                        self.stay_days,
+                        row[3].strftime('%d.%m.%y'),
+                        row[4],
+                        '%i/%i' % (row[5], row[6]),
+                        self.days_between_arrival
+                    ])
+                else:
+                    rows.append([
+                        self.sanatorium_name,
+                        self.department,
+                        row[0],
+                        row[1],
+                        row[2].strftime('%d.%m.%y - %a'),
+                        self.stay_days,
+                        row[3].strftime('%d.%m.%y'),
+                        row[4],
+                        '%i/%i' % (row[5], row[6]),
+                        self.days_between_arrival
+                    ])
 
-        df = pd.DataFrame(
-            rows,
-            columns=[
+        if self.type:
+            columns = [
+                'Здравница',
+                'Отделение',
+                'Заезд',
+                'Начало заезда',
+                'Кол-во дней',
+                'Окончание заезда',
+                'Кол-во путёвок',
+                'Заполненность санатория',
+                'Между заездом дн.',
+            ]
+        else:
+            columns = [
                 'Здравница',
                 'Отделение',
                 'Заезд',
@@ -328,6 +392,10 @@ class Voucher(object):
                 'Заполненность санатория',
                 'Между заездом дн.',
             ]
+
+        df = pd.DataFrame(
+            rows,
+            columns=columns
         )
         return df
 

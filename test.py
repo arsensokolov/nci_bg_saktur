@@ -6,9 +6,18 @@ today = date.today()
 
 st.set_page_config(layout='wide', page_title='Тестирование алгоритма выпуска путёвок')
 st.title('Выпуск путёвок')
-st.header('Заездный план выпуска путёвок')
 
 st.sidebar.header('Параметры плана функционирования санатория')
+
+voucher_types = [
+    'Заездный',
+    'Ежедневный',
+]
+voucher_type = st.sidebar.radio('Тип плана', voucher_types, 0)
+
+st.header(voucher_type + ' план выпуска путёвок')
+voucher_type = voucher_types.index(voucher_type)
+
 sanatorium_name = st.sidebar.text_input('Наименование санатория', 'Маяк')
 
 departments = [
@@ -34,26 +43,40 @@ non_arrivals_days = [days_of_week.index(x) for x in non_arrivals_days]
 
 
 days_of_stay = st.sidebar.selectbox('Количество дней пребывания', [14, 18, 21, 29, 30], 0)
-arrival_days = st.sidebar.slider(
-    'Количество заездных дней',
-    min_value=1,
-    max_value=int(days_of_stay),
-    value=5,
-    step=1,
-    help='Количество дней до набора максимальной коечной мощности санатория.'
-)
-days_between_arrival = st.sidebar.number_input('Количество дней между заездами', value=1, min_value=0)
+
+arrival_days = 0
+sanitary_days = 0
+days_between_arrival = 0
+
+if voucher_type == 0:
+    arrival_days = st.sidebar.slider(
+        'Количество заездных дней',
+        min_value=1,
+        max_value=int(days_of_stay),
+        value=5,
+        step=1,
+        help='Количество дней до набора максимальной коечной мощности санатория.'
+    )
+    sanitary_days = st.sidebar.number_input('Количество санитарных дней', value=3, min_value=0)
+elif voucher_type == 1:
+    days_between_arrival = st.sidebar.number_input('Количество дней между заездами', value=1, min_value=0)
+
 
 vouchers = Voucher(
+    type=voucher_type,
     sanatorium_name=sanatorium_name,
     department=department,
     bed_capacity=bed_capacity,
     stay_days=days_of_stay,
-    arrival_days=arrival_days,
     period=period,
-    days_between_arrival=days_between_arrival,
     non_arrivals_days=non_arrivals_days
 )
+if voucher_type == 0:
+    vouchers.arrival_days = arrival_days
+    vouchers.sanitary_days = sanitary_days
+elif voucher_type == 1:
+    vouchers.days_between_arrival = days_between_arrival
+
 st.sidebar.info('Количество путевок в день: %i' % vouchers.tours_per_day)
 
 stop_sanatorium = st.sidebar.checkbox('Плановая остановка санатория')
