@@ -341,7 +341,7 @@ class Voucher(object):
             if not data:
                 break
             for row in data:
-                if self.type:
+                if self.type == 1:
                     rows.append([
                         self.sanatorium_name,
                         self.department,
@@ -364,10 +364,10 @@ class Voucher(object):
                         row[3].strftime('%d.%m.%y'),
                         row[4],
                         '%i/%i' % (row[5], row[6]),
-                        self.days_between_arrival
+                        row[7],
                     ])
 
-        if self.type:
+        if self.type == 1:
             columns = [
                 'Здравница',
                 'Отделение',
@@ -390,7 +390,7 @@ class Voucher(object):
                 'Окончание заезда',
                 'Кол-во путёвок',
                 'Заполненность санатория',
-                'Между заездом дн.',
+                'Санитарных дн.',
             ]
 
         df = pd.DataFrame(
@@ -401,8 +401,10 @@ class Voucher(object):
 
     def get_arrival(self, prev_arrival: Union[list, None] = None) -> list:
         data = []
-        rest_beds = prev_arrival[-1][5] if prev_arrival else 0
+        # rest_beds = prev_arrival[-1][5] if prev_arrival else 0
+        rest_beds = 0
         arrival_number = prev_arrival[-1][0] + 1 if prev_arrival else 1
+        sanitary_days = self.sanitary_days
         arrival_day = 0
         day_iterate = 0
         start_date, end_date = self.period
@@ -419,8 +421,9 @@ class Voucher(object):
 
         prev_arrival_end_dates = []
         if prev_arrival:
-            start_date = prev_arrival[arrival_day][3]
-            prev_arrival_end_dates = [x[3] for x in prev_arrival]
+            # start_date = prev_arrival[arrival_day][3]
+            start_date = prev_arrival[-1][3] + timedelta(days=self.sanitary_days + 1)
+            # prev_arrival_end_dates = [x[3] for x in prev_arrival]
             # настроим все необходимые параметры если была остановка санатория
             # и предыдущий заезд полностью не завершился
             if stop_period and start_date < stop_period.end_datetime.date() and len(prev_arrival) < self.arrival_days:
@@ -451,18 +454,19 @@ class Voucher(object):
                 except IndexError:
                     pass
 
-                try:
-                    preventive_day = prev_arrival[arrival_day][3] + timedelta(days=self.days_between_arrival + 1)
-                    if preventive_day > arrival_start_date:
-                        # пометим дни в которые ещё нельзя делать заезд
-                        good_day = False
-                    else:
-                        good_day = True
-                except IndexError:
-                    pass
+                # try:
+                #     # создаём профилактический день
+                #     preventive_day = prev_arrival[arrival_day][3] + timedelta(days=self.days_between_arrival + 1)
+                #     # если профилактический день всё ещё больше даты начала заезда:
+                #     if preventive_day > arrival_start_date:
+                #         # помечаем день плохим, т.к. в него ещё нельзя заезжать.
+                #         good_day = False
+                #     else:
+                #         good_day = True
+                # except IndexError:
+                #     pass
 
             # если дата выселения выходит за границы конца заездного плана прерываем цикл
-            # TODO: узнать нужно ли при этой проверке разрешать последний день проживая ставить последним днём?
             if arrival_end_date > end_date:
                 break
 
@@ -477,13 +481,17 @@ class Voucher(object):
                     good_day and
                     rest_beds + tours_per_day <= bed_capacity):
                 # добавим поселенцев в санаторий
-                rest_beds += tours_per_day
+                rest_beds = rest_beds + tours_per_day
 
                 # добьём кол-во путёвок по остаточным свободным местам
                 if arrival_day + 1 == self.arrival_days and rest_beds < bed_capacity:
                     odd = bed_capacity - rest_beds
                     tours_per_day += odd
                     rest_beds += odd
+
+                skip_days_after = 0
+                if arrival_day + 1 == self.arrival_days:
+                    skip_days_after = self.sanitary_days
 
                 # сформируем массив данных
                 data.append([
@@ -494,29 +502,8 @@ class Voucher(object):
                     tours_per_day,
                     rest_beds,
                     bed_capacity,
+                    skip_days_after,
                 ])
                 arrival_day += 1
             day_iterate += 1
         return data
-
-    def get_arrival_data(self, data, start_date, end_date, rest_beds, tours_per_day, arrival_number, arrival_day, bed_capacity,):
-        # добавим поселенцев в санаторий
-        rest_beds += tours_per_day
-
-        # добъём кол-во путёвок по остаточным свободным местам
-        if arrival_day + 1 == self.arrival_days and rest_beds < bed_capacity:
-            odd = bed_capacity - rest_beds
-            tours_per_day += odd
-            rest_beds += odd
-
-        # сформируем массив данных
-        data.append([
-            arrival_number,
-            arrival_day + 1,
-            start_date,
-            end_date,
-            tours_per_day,
-            rest_beds,
-        ])
-
-        return date
