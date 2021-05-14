@@ -363,6 +363,8 @@ class Voucher(object):
                         self.stay_days,
                         row[3].strftime('%d.%m.%y'),
                         row[4],
+                        row[8],
+                        row[9],
                         '%i/%i' % (row[5], row[6]),
                         row[7],
                     ])
@@ -389,6 +391,8 @@ class Voucher(object):
                 'Кол-во дней',
                 'Окончание заезда',
                 'Кол-во путёвок',
+                '№ путёвок с',
+                '№ путёвок по',
                 'Заполненность санатория',
                 'Санитарных дн.',
             ]
@@ -408,6 +412,7 @@ class Voucher(object):
         arrival_day = 0
         day_iterate = 0
         start_date, end_date = self.period
+        voucher_number_from = 1
 
         # дни/период остановки санатория
         stop_period = []
@@ -422,7 +427,8 @@ class Voucher(object):
         prev_arrival_end_dates = []
         if prev_arrival:
             # start_date = prev_arrival[arrival_day][3]
-            start_date = prev_arrival[-1][3] + timedelta(days=self.sanitary_days + 1)
+            start_date = prev_arrival[-1][3] + timedelta(days=prev_arrival[-1][7] + 1)
+            voucher_number_from = prev_arrival[-1][9] + 1
             # prev_arrival_end_dates = [x[3] for x in prev_arrival]
             # настроим все необходимые параметры если была остановка санатория
             # и предыдущий заезд полностью не завершился
@@ -434,6 +440,7 @@ class Voucher(object):
         good_day = True
         bed_capacity = self.bed_capacity
         tours_per_day = self.tours_per_day
+        voucher_number_to = voucher_number_from + tours_per_day
 
         while arrival_day < self.arrival_days:
             # начальная дата — заселение
@@ -475,6 +482,7 @@ class Voucher(object):
             if reducing_period and arrival_period.is_intersection(reducing_period):
                 tours_per_day = self.reduce_tours_per_day
                 bed_capacity = self.bed_capacity - self.reduce_beds
+                voucher_number_to = voucher_number_from + tours_per_day
 
             # проверяем чтобы заезд был не в запрещённые дни недели
             if (arrival_start_date.weekday() not in self.non_arrivals_days and
@@ -482,6 +490,11 @@ class Voucher(object):
                     rest_beds + tours_per_day <= bed_capacity):
                 # добавим поселенцев в санаторий
                 rest_beds = rest_beds + tours_per_day
+
+                # пересчитаем новые номера путёвок с учётом прошедшего заселения
+                if arrival_day > 0:
+                    voucher_number_from = voucher_number_from + tours_per_day + 1
+                    voucher_number_to = voucher_number_from + tours_per_day
 
                 # добьём кол-во путёвок по остаточным свободным местам
                 if arrival_day + 1 == self.arrival_days and rest_beds < bed_capacity:
@@ -503,6 +516,8 @@ class Voucher(object):
                     rest_beds,
                     bed_capacity,
                     skip_days_after,
+                    voucher_number_from,
+                    voucher_number_to,
                 ])
                 arrival_day += 1
             day_iterate += 1
