@@ -1,3 +1,5 @@
+import base64
+
 import streamlit as st
 from datetime import date, timedelta
 from vouchers import Voucher
@@ -103,6 +105,20 @@ if reduce_sanatorium:
 
     st.sidebar.info('Кол-во путёвок в день при сокращении: %i' % vouchers.reduce_tours_per_day)
 
-st.dataframe(vouchers.dataframe)
+df = vouchers.dataframe
+st.dataframe(df)
+
+
+def get_tabele_dowload_link(df):
+    csv = df.to_csv(index=False)
+    b64 = base64.b64encode(csv.encode()).decode()
+    return f'<a href="data:file/csv;base64,{b64}" download="vouchers.csv">Сказать таблицу в CSV файле</a>'
+
+
+st.markdown(get_tabele_dowload_link(df), unsafe_allow_html=True)
+
+# if st.button('Скачать CSV'):
+#     df.to_csv('output.csv')
+
 with st.beta_expander('Документация'):
     st.help(vouchers)
