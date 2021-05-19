@@ -1,8 +1,16 @@
+#!/usr/bin/env python
+import os
+
 import datetimerange as dtr
 import math
 import pandas as pd
 import locale
-from datetime import date, timedelta
+import pika
+import json
+from datetime import date, timedelta, datetime
+from pika.adapters.blocking_connection import BlockingChannel
+from pika.spec import Basic
+from json.decoder import JSONDecodeError
 from exceptions import (
     VoucherIntMoreZero,
     VoucherIntBetween,
@@ -52,6 +60,12 @@ class Voucher(object):
     dataframe:
         Атрибут возвращает датафрейм для формирования таблицы данных. Только для чтения.
     """
+    sanitary_days_count: int
+    days_between_arrivals_count: int
+    department_id: int
+    voucher_release_plan_id: int
+    sanatorium_id: int
+
     CAPTIONS = {
         'type': 'type (Тип плана)',
         'bed_capacity': 'bed_capacity (Коечная мощность)',
@@ -81,29 +95,39 @@ class Voucher(object):
     __non_arrivals_days = []
 
     def __init__(self, **kwargs) -> NoReturn:
-        # Обязательные параметры
-        self.type: int = kwargs.get('type', 0)
-        self.bed_capacity: int = kwargs.get('bed_capacity', 0)
-        self.stay_days: int = kwargs.get('stay_days', 0)
-        self.period: Tuple[date, date] = kwargs.get('period', None)
-        self.sanatorium_name: str = kwargs.get('sanatorium_name', '')
-        self.department: str = kwargs.get('department', '')
+        self.ampq_url = os.environ.get('AMQP_URL', 'amqp://localhost?connection_attempts=5&retry_delay=5')
+        self.queue_name = os.environ.get('QUEUE_NAME', 'rpc_queue')
+        self.prefetch_count = int(os.environ.get('PREFETCH_COUNT', 1))
 
-        # Не обязательные параметры
-        self.arrival_days: int = kwargs.get('arrival_days', self.__arrival_days)
-        self.stop_period: Tuple[date, date] = kwargs.get('stop_period', self.__stop_period)
-        self.stop_description: str = kwargs.get('stop_description', self.__stop_description)
-        self.reducing_period: Tuple[date, date] = kwargs.get('reducing_period', self.__reducing_period)
-        self.reduce_beds: int = kwargs.get('reduce_beds', self.__reduce_beds)
-        self.reduce_description: str = kwargs.get('reduce_description', self.__reduce_description)
-        self.sanitary_days: int = kwargs.get('sanitary_days', self.__sanitary_days)
-        self.days_between_arrival: int = kwargs.get('days_between_arrival', self.__days_between_arrival)
-        self.non_arrivals_days: list = kwargs.get('non_arrivals_days', self.__non_arrivals_days)
+        if self.ampq_url:
+            print('RabbitMQ URL: %s' % self.ampq_url)
+            print('RabbitMQ Queue Name: %s' % self.queue_name)
+            print('RabbitMQ Prefetch Count: %s' % self.prefetch_count)
+            self.__connect__()
+        else:
+            # Обязательные параметры
+            self.type: int = kwargs.get('type', 0)
+            self.bed_capacity: int = kwargs.get('bed_capacity', 0)
+            self.stay_days: int = kwargs.get('stay_days', 0)
+            self.period: Tuple[date, date] = kwargs.get('period', None)
+            self.sanatorium_name: str = kwargs.get('sanatorium_name', '')
+            self.department: str = kwargs.get('department', '')
 
-        # Проверим полученные данные
-        self.__validate__()
+            # Не обязательные параметры
+            self.arrival_days: int = kwargs.get('arrival_days', self.__arrival_days)
+            self.stop_period: Tuple[date, date] = kwargs.get('stop_period', self.__stop_period)
+            self.stop_description: str = kwargs.get('stop_description', self.__stop_description)
+            self.reducing_period: Tuple[date, date] = kwargs.get('reducing_period', self.__reducing_period)
+            self.reduce_beds: int = kwargs.get('reduce_beds', self.__reduce_beds)
+            self.reduce_description: str = kwargs.get('reduce_description', self.__reduce_description)
+            self.sanitary_days: int = kwargs.get('sanitary_days', self.__sanitary_days)
+            self.days_between_arrival: int = kwargs.get('days_between_arrival', self.__days_between_arrival)
+            self.non_arrivals_days: list = kwargs.get('non_arrivals_days', self.__non_arrivals_days)
 
-        self.__set_locale__()
+            # Проверим полученные данные
+            self.__validate__()
+
+            self.__set_locale__()
 
     def __repr__(self) -> str:
         date_from, date_to = self.__str_period__()
@@ -112,6 +136,14 @@ class Voucher(object):
     def __str__(self) -> str:
         date_from, date_to = self.__str_period__()
         return f'Заездный план выпуска путёвок c {date_from} по {date_to} г.г.'
+
+    def __connect__(self) -> NoReturn:
+        self.parameters = pika.URLParameters(self.ampq_url)
+        self.connection = pika.BlockingConnection(self.parameters)
+        self.channel = self.connection.channel()
+        self.channel.queue_declare(queue=self.queue_name)
+        self.channel.basic_qos(prefetch_count=self.prefetch_count)
+        self.channel.basic_consume(queue=self.queue_name, on_message_callback=self.on_request)
 
     def __str_period__(self) -> Tuple[str, str]:
         """Функция преобразует даты периода формирования плана выпуска путёвок в удобочитаемый формат: ДД-ММ-ГГГГ."""
@@ -163,6 +195,72 @@ class Voucher(object):
             self.__validate_days_between_arrival(self.days_between_arrival)
         if self.non_arrivals_days:
             self.__validate_non_arrivals_days(self.non_arrivals_days)
+
+    def start(self):
+        try:
+            self.channel.start_consuming()
+        except KeyboardInterrupt:
+            self.channel.stop_consuming()
+
+    @property
+    def test_response_body(self) -> dict:
+        arrival_date = date.today()
+        departure_date = date.today()
+        return {
+            'success': True,
+            'data': [
+                {
+                    'voucher_release_plan_id': self.voucher_release_plan_id,
+                    'sanatorium_id': self.sanatorium_id,
+                    'department_id': self.department_id,
+                    'arrival_number': 0,
+                    'arrival_day_number': 0,
+                    'arrival_date': arrival_date.strftime('%Y-%m-%d'),
+                    'days_of_stay_count': 0,
+                    'departure_date': departure_date.strftime('%Y-%m-%d'),
+                    'vouchers_count': 0,
+                    'voucher_number_from': 0,
+                    'voucher_number_to': 0,
+                    'days_between_arrivals_count': self.days_between_arrivals_count,
+                    'sanitary_days_count': self.sanitary_days_count,
+                    'status': 1,
+                }
+            ]
+        }
+
+    def error(self, message: str, voucher_release_plan_id: id = 0) -> dict:
+        return {
+            'success': False,
+            'data': {
+                'error_msg': message,
+                'voucher_release_plan_id': voucher_release_plan_id,
+            }
+        }
+
+    def set_init(self, body: dict) -> NoReturn:
+        self.voucher_release_plan_id = body['id']
+        self.sanatorium_id = body['operational_plan']['sanatorium_id']
+        self.department_id = body['operational_plan']['department']['department_id']
+        self.days_between_arrivals_count = body['number_days_between_arrivals']
+        self.sanitary_days_count = body['sanitary_days']
+
+    def on_request(self, ch: BlockingChannel, method: Basic.Deliver, props: pika.BasicProperties, body: str) -> None:
+        print(f'{datetime.now()} [info] {body}')
+
+        try:
+            body = json.loads(body)
+            self.set_init(body)
+            reply = self.test_response_body
+        except JSONDecodeError:
+            reply = self.error('Не возможно декодировать полученное сообщение. Передан не верный JSON формат.')
+
+        ch.basic_publish(
+            exchange=method.exchange,
+            routing_key=props.reply_to,
+            properties=pika.BasicProperties(correlation_id=props.correlation_id, content_type='application/json'),
+            body=json.dumps(reply),
+        )
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
     @property
     def arrival_days(self) -> int:
@@ -523,3 +621,12 @@ class Voucher(object):
                 arrival_day += 1
             day_iterate += 1
         return data
+
+
+if __name__ == '__main__':
+    voucher = Voucher()
+    if voucher.ampq_url:
+        voucher.start()
+    else:
+        print('В консольном режиме может работать только с подключением к RabbitMQ!')
+        exit(1)
