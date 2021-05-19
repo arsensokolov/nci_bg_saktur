@@ -1,0 +1,13 @@
+.vscode/
+.idea/
+venv/
+__pycache__/
+.git*
+
+*.py[cod]
+.env*
+.DS_Store
+thumbs.db
+docker-compose.*
+*.md
+Dockerfile
