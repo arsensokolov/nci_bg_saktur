@@ -1,0 +1,27 @@
+version: '3.0'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: 'rabbitmq'
+    ports:
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ~/.docker-conf/rabbitmq/data:/var/lib/rabbitmq
+      - ~/.docker-conf/rabbitmq/log:/var/log/rabbitmq
+    networks:
+      - voucher_net
+  vouchers:
+    build: .
+    container_name: 'vouchers'
+    environment:
+      AMQP_URL: 'amqp://rabbitmq?connection_attempts=5&retry_delay=5'
+      QUEUE_NAME: 'rpc_queue'
+      PREFETCH_COUNT: 1
+      VOUCHERS_URL: ''
+    networks:
+      - voucher_net
+
+networks:
+  voucher_net: {}
