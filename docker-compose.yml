@@ -19,7 +19,7 @@ services:
       AMQP_URL: 'amqp://rabbitmq?connection_attempts=5&retry_delay=5'
       QUEUE_NAME: 'rpc_queue'
       PREFETCH_COUNT: 1
-      VOUCHERS_URL: ''
+      VOUCHERS_URL: 'https://11b16e85-25b8-4ff2-9980-f2c136ddc8b7.mock.pstmn.io'
     networks:
       - voucher_net
 
