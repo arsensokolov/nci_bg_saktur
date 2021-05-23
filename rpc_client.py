@@ -35,8 +35,10 @@ class VoucherRpcClient(object):
     @property
     def body(self):
         today = date.today()
-        date_from = date(today.year, today.month, 1)
-        date_to = date_from + timedelta(days=30)
+        date_from = date(today.year, 1, 1)
+        date_to = date(today.year, 4, 9)
+        plan_type_code = random.randint(1, 2)
+        plan_type_names = ['Ежедневный', 'Заездный']
         return {
             'id': random.randint(1, 9999999),
             'operational_plan': {
@@ -46,33 +48,41 @@ class VoucherRpcClient(object):
                 'date_from': date_from.strftime('%Y-%m-%d'),
                 'date_to': date_to.strftime('%Y-%m-%d'),
                 'department': {
-                    'num_of_beds': 0,
+                    'num_of_beds': 300,
                     'department_id': random.randint(1, 99),
                 }
             },
             'plan_type': {
-                'id': 0,
-                'code': 0,
-                'name': 'string',
+                'id': plan_type_code,
+                'code': plan_type_code,
+                'name': plan_type_names[plan_type_code - 1],
             },
             'number_stay_days': {
-                'id': 0,
-                'count': 0,
-                'name': 'string',
-                'is_system': False,
+                'id': random.randint(1, 99999),
+                'count': 14,
+                'name': '14 дней',
+                'is_system': True,
             },
-            'number_days_between_arrivals': 0,
-            'non_arrival_days': {
-                'code': 0,
-                'name': 'string',
-            },
-            'sanitary_days': 0,
-            'number_arrival_days': 0,
-            'comment': 'string',
+            'number_days_between_arrivals': 1,
+            'non_arrival_days': [
+                {
+                    'id': random.randint(1, 9999),
+                    'code': 1,
+                    'name': 'пн',
+                },
+                {
+                    'id': random.randint(1, 9999) + 1,
+                    'code': 2,
+                    'name': 'вт',
+                },
+            ],
+            'sanitary_days': 2,
+            'number_arrival_days': 5,
+            'comment': None,
             'status': {
-                'id': 0,
-                'code': 0,
-                'name': 'string',
+                'id': 2,
+                'code': 2,
+                'name': 'На согласовании в санатории',
             }
         }
 
@@ -97,4 +107,16 @@ voucher_rpc = VoucherRpcClient()
 
 print(' [x] Requesting...')
 response = voucher_rpc.call()
-print(' [.] Got %r' % response)
+count = 1
+while not response['success']:
+    count += 1
+    if count > 5:
+        break
+    print(' [.] Error: %s' % response['data']['error_msg'])
+    print(' [x] Trying request %i...' % count)
+    response = voucher_rpc.call()
+if response['success']:
+    print(' [.] Got %i arrivals' % len(response['data']))
+else:
+    print(' [.] No correct response data')
+# print(' [.] Got %r' % response)
