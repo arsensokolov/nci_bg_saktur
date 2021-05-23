@@ -117,6 +117,6 @@ while not response['success']:
     response = voucher_rpc.call()
 if response['success']:
     print(' [.] Got %i arrivals' % len(response['data']))
+    print(' [.] Got %r' % response)
 else:
     print(' [.] No correct response data')
-# print(' [.] Got %r' % response)
