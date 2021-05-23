@@ -3,3 +3,4 @@ pandas==1.2.4
 numpy==1.20.3
 DateTimeRange==1.0.0
 Pika==1.2.0
+requests==2.25.1
