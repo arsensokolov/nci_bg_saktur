@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-
+import requests
 import datetimerange as dtr
 import math
 import pandas as pd
@@ -11,6 +11,7 @@ from datetime import date, timedelta, datetime
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.spec import Basic
 from json.decoder import JSONDecodeError
+from urllib.parse import urljoin
 from exceptions import (
     VoucherIntMoreZero,
     VoucherIntBetween,
@@ -98,6 +99,7 @@ class Voucher(object):
         self.ampq_url = os.environ.get('AMQP_URL', 'amqp://localhost?connection_attempts=5&retry_delay=5')
         self.queue_name = os.environ.get('QUEUE_NAME', 'rpc_queue')
         self.prefetch_count = int(os.environ.get('PREFETCH_COUNT', 1))
+        self.voucher_url = os.environ.get('VOUCHERS_URL')
 
         if os.environ.get('AMQP_URL'):
             print('RabbitMQ URL: %s' % self.ampq_url)
@@ -232,8 +234,11 @@ class Voucher(object):
         except (IndexError, KeyError) as e:
             return self.error(str(e), voucher_release_plan_id)
 
+        # получим номер последнего номера путёвки
+        voucher_number_from = self.get_voucher_number_from()
+
         while True:
-            data = self.get_arrival(data)
+            data = self.get_arrival(data, voucher_number_from=voucher_number_from)
             print('-- DATA: %r' % data)
             if not data:
                 break
@@ -464,6 +469,11 @@ class Voucher(object):
 
     @property
     def dataframe(self) -> pd.DataFrame:
+        """
+        Функция создаёт датафрейм для отображения сформированного плана в удобном виде, например: таблица или CSV файл.
+
+        :return: Датафрейм плана в формате Pandas.
+        """
         rows = []
         data = []
         while True:
@@ -534,7 +544,41 @@ class Voucher(object):
         )
         return df
 
-    def get_arrival(self, prev_arrival: Union[list, None] = None) -> list:
+    def get_voucher_number_from(self) -> int:
+        """
+        Функция получает последний номер путёвки в системе НЦИ БГ СанКур.
+        :return: Возвращает новый стартовый номер путёвки.
+        """
+        voucher_number_from = 1
+        if self.voucher_url:
+            filters = {
+                'order_by': '-number',
+                'sanatorium_id': self.sanatorium_id,
+                'limit': 1,
+            }
+            url = urljoin(self.voucher_url, '/api/v1.0/voucher/')
+            r = requests.get(url, params=filters)
+            if r.status_code == requests.codes.ok:
+                data: list = r.json()
+
+                # попробуем получить последний номер путёвки
+                try:
+                    number = int(data[0]['number'])
+                    if number > 1:
+                        voucher_number_from = number + 1
+                except (KeyError, IndexError, ValueError):
+                    pass
+
+        return voucher_number_from
+
+    def get_arrival(self, prev_arrival: Union[list, None] = None, voucher_number_from: int = 1) -> list:
+        """
+        Функция создает заезд исходя из первичных параметров.
+
+        :param prev_arrival: Предыдущий заезд, может быть пустым, тогда план создаётся с нуля.
+        :param voucher_number_from: Номер путёвки с которого необходимо начать отчёт новых путёвок.
+        :return: Массив данных по текущему заезду.
+        """
         data = []
         # rest_beds = prev_arrival[-1][5] if prev_arrival else 0
         rest_beds = 0
@@ -543,7 +587,6 @@ class Voucher(object):
         arrival_day = 0
         day_iterate = 0
         start_date, end_date = self.period
-        voucher_number_from = 1
 
         # дни/период остановки санатория
         stop_period = []
