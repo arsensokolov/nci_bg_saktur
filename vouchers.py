@@ -99,7 +99,7 @@ class Voucher(object):
         self.queue_name = os.environ.get('QUEUE_NAME', 'rpc_queue')
         self.prefetch_count = int(os.environ.get('PREFETCH_COUNT', 1))
 
-        if self.ampq_url:
+        if os.environ.get('AMQP_URL'):
             print('RabbitMQ URL: %s' % self.ampq_url)
             print('RabbitMQ Queue Name: %s' % self.queue_name)
             print('RabbitMQ Prefetch Count: %s' % self.prefetch_count)
@@ -202,30 +202,70 @@ class Voucher(object):
         except KeyboardInterrupt:
             self.channel.stop_consuming()
 
-    @property
-    def test_response_body(self) -> dict:
-        arrival_date = date.today()
-        departure_date = date.today()
+    def response_body(self, body: dict):
+        data = []
+        rows = []
+        success = False
+        voucher_release_plan_id = body.get('id', 0)
+        # проверим на существование номера плана
+        if not voucher_release_plan_id:
+            return self.error('Не передан номер плана, ошибочные вводные данные.')
+
+        try:
+            # вытаскиваем все необходимые данные для формирования плана
+            self.sanatorium_id = body['operational_plan']['sanatorium_id']
+            date_from = body['operational_plan']['date_from']
+            date_to = body['operational_plan']['date_to']
+            self.period = [datetime.strptime(date_from, '%Y-%m-%d'), datetime.strptime(date_to, '%Y-%m-%d')]
+            self.department_id = body['operational_plan']['department']['department_id']
+            self.bed_capacity = body['operational_plan']['department']['num_of_beds']
+            plan_type_code = body['plan_type']['code']
+            self.type = 0 if plan_type_code == 2 else 1
+            self.stay_days = body['number_stay_days']['count']
+            self.days_between_arrival = body['number_days_between_arrivals']
+            non_arrival_days = []
+            for x in body['non_arrival_days']:
+                non_arrival_days.append(x['code'])
+            self.non_arrivals_days = non_arrival_days
+            self.sanitary_days = body['sanitary_days']
+            self.arrival_days = body['number_arrival_days']
+        except (IndexError, KeyError) as e:
+            return self.error(str(e), voucher_release_plan_id)
+
+        while True:
+            data = self.get_arrival(data)
+            print('-- DATA: %r' % data)
+            if not data:
+                break
+            success = True
+            for row in data:
+                if self.type == 0:
+                    rows.append({
+                        'voucher_release_plan_id': voucher_release_plan_id,
+                        'sanatorium_id': self.sanatorium_id,
+                        'department_id': self.department_id,
+                        'arrival_number': row[0],
+                        'arrival_day_number': row[1],
+                        'arrival_date': row[2].strftime('%Y-%m-%d'),
+                        'days_of_stay_count': self.stay_days,
+                        'departure_date': row[3].strftime('%Y-%m-%d'),
+                        'vouchers_count': row[4],
+                        'voucher_number_from': row[8],
+                        'voucher_number_to': row[9],
+                        'days_between_arrivals_count': self.days_between_arrival,
+                        'sanitary_days_count': row[7],
+                        'status': 1,
+                    })
+
+        if not rows:
+            return self.error(
+                'Получен пустой массив выходных данных. Попробуйте повторить запрос.',
+                voucher_release_plan_id
+            )
+
         return {
-            'success': True,
-            'data': [
-                {
-                    'voucher_release_plan_id': self.voucher_release_plan_id,
-                    'sanatorium_id': self.sanatorium_id,
-                    'department_id': self.department_id,
-                    'arrival_number': 0,
-                    'arrival_day_number': 0,
-                    'arrival_date': arrival_date.strftime('%Y-%m-%d'),
-                    'days_of_stay_count': 0,
-                    'departure_date': departure_date.strftime('%Y-%m-%d'),
-                    'vouchers_count': 0,
-                    'voucher_number_from': 0,
-                    'voucher_number_to': 0,
-                    'days_between_arrivals_count': self.days_between_arrivals_count,
-                    'sanitary_days_count': self.sanitary_days_count,
-                    'status': 1,
-                }
-            ]
+            'success': success,
+            'data': rows,
         }
 
     def error(self, message: str, voucher_release_plan_id: id = 0) -> dict:
@@ -237,20 +277,12 @@ class Voucher(object):
             }
         }
 
-    def set_init(self, body: dict) -> NoReturn:
-        self.voucher_release_plan_id = body['id']
-        self.sanatorium_id = body['operational_plan']['sanatorium_id']
-        self.department_id = body['operational_plan']['department']['department_id']
-        self.days_between_arrivals_count = body['number_days_between_arrivals']
-        self.sanitary_days_count = body['sanitary_days']
-
     def on_request(self, ch: BlockingChannel, method: Basic.Deliver, props: pika.BasicProperties, body: str) -> None:
         print(f'{datetime.now()} [info] {body}')
 
         try:
             body = json.loads(body)
-            self.set_init(body)
-            reply = self.test_response_body
+            reply = self.response_body(body)
         except JSONDecodeError:
             reply = self.error('Не возможно декодировать полученное сообщение. Передан не верный JSON формат.')
 
