@@ -110,7 +110,7 @@ response = voucher_rpc.call()
 count = 1
 while not response['success']:
     count += 1
-    if count > 5:
+    if count > 10:
         break
     print(' [.] Error: %s' % response['data']['error_msg'])
     print(' [x] Trying request %i...' % count)
