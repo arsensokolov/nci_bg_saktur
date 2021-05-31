@@ -97,13 +97,15 @@ class Voucher(object):
 
     def __init__(self, **kwargs) -> NoReturn:
         self.ampq_url = os.environ.get('AMQP_URL', 'amqp://localhost?connection_attempts=5&retry_delay=5')
-        self.queue_name = os.environ.get('QUEUE_NAME', 'rpc_queue')
+        self.queue_name_request = os.environ.get('QUEUE_NAME_REQUEST', 'request_queue')
+        self.queue_name_response = os.environ.get('QUEUE_NAME_RESPONSE', 'response_queue')
         self.prefetch_count = int(os.environ.get('PREFETCH_COUNT', 1))
         self.voucher_url = os.environ.get('VOUCHERS_URL')
 
         if os.environ.get('AMQP_URL'):
             print('RabbitMQ URL: %s' % self.ampq_url)
-            print('RabbitMQ Queue Name: %s' % self.queue_name)
+            print('RabbitMQ Request Queue Name: %s' % self.queue_name_request)
+            print('RabbitMQ Response Queue Name: %s' % self.queue_name_response)
             print('RabbitMQ Prefetch Count: %s' % self.prefetch_count)
             self.__connect__()
         else:
@@ -143,9 +145,9 @@ class Voucher(object):
         self.parameters = pika.URLParameters(self.ampq_url)
         self.connection = pika.BlockingConnection(self.parameters)
         self.channel = self.connection.channel()
-        self.channel.queue_declare(queue=self.queue_name)
+        self.channel.queue_declare(queue=self.queue_name_response)
         self.channel.basic_qos(prefetch_count=self.prefetch_count)
-        self.channel.basic_consume(queue=self.queue_name, on_message_callback=self.on_request)
+        self.channel.basic_consume(queue=self.queue_name_request, on_message_callback=self.on_request)
 
     def __str_period__(self) -> Tuple[str, str]:
         """Функция преобразует даты периода формирования плана выпуска путёвок в удобочитаемый формат: ДД-ММ-ГГГГ."""
@@ -291,10 +293,9 @@ class Voucher(object):
         except JSONDecodeError:
             reply = self.error('Не возможно декодировать полученное сообщение. Передан не верный JSON формат.')
 
-        ch.basic_publish(
-            exchange=method.exchange,
-            routing_key=props.reply_to,
-            properties=pika.BasicProperties(correlation_id=props.correlation_id, content_type='application/json'),
+        self.channel.basic_publish(
+            exchange='',
+            routing_key=self.queue_name_response,
             body=json.dumps(reply),
         )
         ch.basic_ack(delivery_tag=method.delivery_tag)
