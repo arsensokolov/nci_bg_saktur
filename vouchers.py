@@ -284,7 +284,7 @@ class Voucher(object):
             }
         }
 
-    def on_request(self, ch: BlockingChannel, method: Basic.Deliver, props: pika.BasicProperties, body: str) -> None:
+    def on_request(self, ch: BlockingChannel, method: Basic.Deliver, props: pika.BasicProperties, body: bytes) -> None:
         print(f'{datetime.now()} [info] {body}')
 
         try:
@@ -560,7 +560,7 @@ class Voucher(object):
             url = urljoin(self.voucher_url, '/api/v1.0/voucher/')
             r = requests.get(url, params=filters)
             if r.status_code == requests.codes.ok:
-                data: list = r.json()
+                data: list = r.json()['rows']
 
                 # попробуем получить последний номер путёвки
                 try:
