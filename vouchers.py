@@ -145,7 +145,7 @@ class Voucher(object):
         self.parameters = pika.URLParameters(self.ampq_url)
         self.connection = pika.BlockingConnection(self.parameters)
         self.channel = self.connection.channel()
-        self.channel.queue_declare(queue=self.queue_name_response)
+        self.channel.queue_declare(queue=self.queue_name_request, durable=True)
         self.channel.basic_qos(prefetch_count=self.prefetch_count)
         self.channel.basic_consume(queue=self.queue_name_request, on_message_callback=self.on_request)
 
@@ -297,6 +297,9 @@ class Voucher(object):
             exchange='',
             routing_key=self.queue_name_response,
             body=json.dumps(reply),
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+            ),
         )
         ch.basic_ack(delivery_tag=method.delivery_tag)
 

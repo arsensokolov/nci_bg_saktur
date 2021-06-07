@@ -10,7 +10,7 @@ def main():
     channel = connection.channel()
 
     queue = os.environ.get('QUEUE_NAME_RESPONSE', 'response_queue')
-    channel.queue_declare(queue)
+    channel.queue_declare(queue, durable=True)
 
     def callback(ch, method, prop, body):
         print(' [x] Received: %r' % json.loads(body))

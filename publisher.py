@@ -13,7 +13,7 @@ class VoucherTaskPublisher(object):
         self.parameters = pika.URLParameters(self.ampq_url)
         self.connection = pika.BlockingConnection(self.parameters)
         self.channel = self.connection.channel()
-        self.channel.queue_declare(queue=self.queue_name)
+        self.channel.queue_declare(queue=self.queue_name, durable=True)
 
     @property
     def body(self):
@@ -74,6 +74,9 @@ class VoucherTaskPublisher(object):
             exchange='',
             routing_key=self.queue_name,
             body=json.dumps(self.body),
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+            )
         )
         self.connection.close()
 
