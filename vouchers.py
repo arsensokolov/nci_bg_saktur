@@ -557,7 +557,7 @@ class Voucher(object):
         if self.voucher_url:
             filters = {
                 'order_by': '-number',
-                'f': f'sanatorium_id={self.sanatorium_id}',
+                'sanatorium_id__in': self.sanatorium_id,
                 'limit': 1,
             }
             url = urljoin(self.voucher_url, '/api/v1.0/voucher/')
