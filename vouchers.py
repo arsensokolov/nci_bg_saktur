@@ -66,6 +66,7 @@ class Voucher(object):
     department_id: int
     voucher_release_plan_id: int
     sanatorium_id: int
+    operational_plan_id: int
 
     CAPTIONS = {
         'type': 'type (Тип плана)',
@@ -217,6 +218,7 @@ class Voucher(object):
 
         try:
             # вытаскиваем все необходимые данные для формирования плана
+            self.operational_plan_id = body['operational_plan']['id']
             self.sanatorium_id = body['operational_plan']['sanatorium_id']
             date_from = body['operational_plan']['date_from']
             date_to = body['operational_plan']['date_to']
@@ -238,6 +240,9 @@ class Voucher(object):
 
         # получим номер последнего номера путёвки
         voucher_number_from = self.get_voucher_number_from()
+
+        # получим даты ограниченной функциональности и остановки санатория
+        self.get_sanatorium_restriction()
 
         while True:
             data = self.get_arrival(data, voucher_number_from=voucher_number_from)
@@ -274,6 +279,26 @@ class Voucher(object):
             'success': success,
             'data': rows,
         }
+
+    def get_sanatorium_restriction(self) -> NoReturn:
+        """
+        Функция получает даты ограниченной функциональности санатория.
+        """
+        if self.voucher_url:
+            filters = {
+                'f': f'plan_id={self.operational_plan_id}'
+            }
+            url = urljoin(self.voucher_url, '/api/v1.0/restriction/')
+            r = requests.get(url, params=filters)
+            if r.status_code == requests.codes.ok:
+                restrictions: list = r.json().get('rows', [])
+                for restriction in restrictions:
+                    date_begin = datetime.strptime(restriction['date_begin'], '%Y-%m-%d')
+                    date_end = datetime.strptime(restriction['date_end'], '%y-%m-%d')
+                    if restriction['restriction_type']['code'] == 1:
+                        self.stop_period = (date_begin, date_end)
+                    elif restriction['restriction_type']['code'] == 2:
+                        self.reducing_period = (date_begin, date_end)
 
     def error(self, message: str, voucher_release_plan_id: id = 0) -> dict:
         return {
